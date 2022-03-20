@@ -1,0 +1,7 @@
+## Interface: 90200
+## Title: Centering Raid Profile
+## Version: 9.2.0b1
+## Author: Ahron of Exodar-US
+## Notes: Automatically sets up and centers a Blizzard Raid Profile on screen.
+## SavedVariables: CenteringRaidProfileSettings
+CenteringRaidProfile.xml
