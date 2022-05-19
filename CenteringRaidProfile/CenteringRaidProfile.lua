@@ -272,6 +272,7 @@ local function CenteringRaidProfile_UpdateRaidContainerBounds(manager)
 	-- container.  We manipulate the Resize Frame to play nice with Blizzard's UI, and to ensure the bounds are
 	-- saved correctly in the raid profile so that the resize frame looks reasonable/usable if the player chooses
 	-- to stop using this add-on.
+	local resizeFrame = manager.containerResizeFrame;
 	resizeFrame:ClearAllPoints();
 	resizeFrame:SetPoint('TOPLEFT', UIParent, 'BOTTOMLEFT', anchorPointX, anchorPointY);
 	resizeFrame:SetHeight(groupHeight);
