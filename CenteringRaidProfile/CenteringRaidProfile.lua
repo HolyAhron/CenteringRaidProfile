@@ -20,19 +20,20 @@ local RAID_PROFILE_OPTION_FRAME_HEIGHT = 'frameHeight';
 local RAID_PROFILE_OPTION_SHOW_BORDERS = 'displayBorder';
 
 -- The following properties are addon-specific constants and settings.
-local CENTERING_RAID_PROFILE_NAME = 'Centering Raid Profile';
-local CENTERING_RAID_PROFILE_SETTING_DEBUG_LOGGING = 'DebugLogging';
-local CENTERING_RAID_PROFILE_SETTING_CENTER_POINT_X_PERCENTAGE = 'CenterPointXPercentage';
-local CENTERING_RAID_PROFILE_SETTING_CENTER_POINT_Y_PERCENTAGE = 'CenterPointYPercentage';
-local CENTERING_RAID_PROFILE_SETTING_CENTER_ALL_PROFILES = 'CenterAllRaidProfiles';
-local ADDON_DEFAULT_SETTINGS = {
-	[CENTERING_RAID_PROFILE_SETTING_DEBUG_LOGGING] = false,
-	-- These default percentages are my own personal defaults, and places the raid container horizontally
-	-- centered and just above the extra action buttons on screen with default UI scaling and my personal raid
-	-- profile settings (namely: 80 width x 40 height frames).
-	[CENTERING_RAID_PROFILE_SETTING_CENTER_POINT_X_PERCENTAGE] = 0.50,
-	[CENTERING_RAID_PROFILE_SETTING_CENTER_POINT_Y_PERCENTAGE] = 0.3115,
-	[CENTERING_RAID_PROFILE_SETTING_CENTER_ALL_PROFILES] = false,
+local CRP_PROFILE_NAME = 'Centering Raid Profile';
+local CRP_SETTING_DEBUG_LOGGING = 'DebugLogging';
+local CRP_SETTING_ANCHOR_POINT = 'AnchorPoint';
+local CRP_SETTING_ANCHOR_POINT_X_PERCENTAGE = 'AnchorPointXPercentage';
+local CRP_SETTING_ANCHOR_POINT_Y_PERCENTAGE = 'AnchorPointYPercentage';
+local CRP_SETTING_CENTER_ALL_RAID_PROFILES = 'CenterAllRaidProfiles';
+local CRP_DEFAULT_SETTINGS = {
+	[CRP_SETTING_DEBUG_LOGGING] = false,
+	[CRP_SETTING_ANCHOR_POINT] = 'center';
+	-- These default percentages should place the raid container horizontally centered and roughly just above
+	-- the extra action buttons on screen with Blizzard's default scaling and profile settings.
+	[CRP_SETTING_ANCHOR_POINT_X_PERCENTAGE] = 0.50,
+	[CRP_SETTING_ANCHOR_POINT_Y_PERCENTAGE] = 0.30,
+	[CRP_SETTING_CENTER_ALL_RAID_PROFILES] = false,
 };
 
 local crpEnforceConfigurationAfterCombat = false;
@@ -50,7 +51,7 @@ end
 
 
 local function CenteringRaidProfile_DebugPrint(message)
-	local isLogging = CenteringRaidProfileSettings[CENTERING_RAID_PROFILE_SETTING_DEBUG_LOGGING];
+	local isLogging = CenteringRaidProfileSettings[CRP_SETTING_DEBUG_LOGGING];
 	if (isLogging == true) then
 		print('['..ADDON_NAME..'] '..message);
 	end
@@ -78,13 +79,13 @@ end
 
 local function CenteringRaidProfile_EnsureSettingsIntegrity()
 	if (CenteringRaidProfileSettings == nil) then
-		CenteringRaidProfileSettings = ADDON_DEFAULT_SETTINGS;
+		CenteringRaidProfileSettings = CRP_DEFAULT_SETTINGS;
 		return;
 	end
 
-	for key, _ in pairs(ADDON_DEFAULT_SETTINGS) do
+	for key, _ in pairs(CRP_DEFAULT_SETTINGS) do
 		if (CenteringRaidProfileSettings[key] == nil) then
-			CenteringRaidProfileSettings[key] = ADDON_DEFAULT_SETTINGS[key];
+			CenteringRaidProfileSettings[key] = CRP_DEFAULT_SETTINGS[key];
 		end
 	end
 end
@@ -92,11 +93,11 @@ end
 
 local function CenteringRaidProfile_GetWorkingRaidProfile()
 	local activeProfile = GetActiveRaidProfile();
-	local isCenteringAllProfiles = CenteringRaidProfileSettings[CENTERING_RAID_PROFILE_SETTING_CENTER_ALL_PROFILES];
+	local isCenteringAllProfiles = CenteringRaidProfileSettings[CRP_SETTING_CENTER_ALL_RAID_PROFILES];
 	if (isCenteringAllProfiles == true) then	
 		return activeProfile;
 	else
-		return CENTERING_RAID_PROFILE_NAME;
+		return CRP_PROFILE_NAME;
 	end
 end
 
@@ -105,6 +106,7 @@ local function CenteringRaidProfile_GetNumVisibleRaidGroups()
 	local numGroups = 0;
 	local numPlayers = 0;
 	local playerSubgroup = 0;
+	local largestSubgroupCount = 0;
 	
 	local isInRaid = IsInRaid();
 	local isInGroup = IsInGroup();
@@ -128,6 +130,13 @@ local function CenteringRaidProfile_GetNumVisibleRaidGroups()
 				if (UnitName('player') == name) then
 					playerSubgroup = groupNumber;
 				end
+				
+				-- For supporting horizontal groups, we also want to know the largest subgroup
+				-- size, in order to properly center the frame if there are less than 5 people
+				-- across any single group.
+				if (numMembersPerGroup[groupNumber] > largestSubgroupCount) then
+					largestSubgroupCount = numMembersPerGroup[groupNumber];
+				end
 			end
 		end
 		
@@ -142,11 +151,11 @@ local function CenteringRaidProfile_GetNumVisibleRaidGroups()
 		numGroups = 1;
 	end
 	
-	return numGroups, numPlayers, playerSubgroup;
+	return numGroups, numPlayers, playerSubgroup, largestSubgroupCount;
 end
 
 
-local function CenteringRaidProfile_GetApproximateCenteredBounds(centerPointX, centerPointY, numGroups)
+local function CenteringRaidProfile_GetApproximateCenteredFrameBounds(anchorPoint, anchorX, anchorY, numGroups, largestSubgroupCount)
 	-- Calculate the size of the complete raid frame based on the number of visible groups and various
 	-- raid profile settings.
 	local workingProfile = CenteringRaidProfile_GetWorkingRaidProfile();
@@ -171,7 +180,7 @@ local function CenteringRaidProfile_GetApproximateCenteredBounds(centerPointX, c
 	-- I find horizontal groups to be ugly (mostly because of the group title), but I know people who actually use
 	-- this feature, so I support it here.
 	if (usingHorizontalGroups) then
-		groupWidth = (unitWidth * MEMBERS_PER_RAID_GROUP);
+		groupWidth = (unitWidth * largestSubgroupCount);
 		groupHeight = (unitHeight + BCUF_GROUP_TITLE_HEIGHT) * numGroups;
 		if (usingBorders) then
 			groupWidth = groupWidth + (BCUF_BORDER_WIDTH * 2);
@@ -181,15 +190,18 @@ local function CenteringRaidProfile_GetApproximateCenteredBounds(centerPointX, c
 	
 	-- Calculate the anchor point for the resize frame to place the raid container where we want to
 	-- (i.e. centered on the default frame).
-	local anchorPointX = centerPointX - (groupWidth / 2) - (numGroups + 1);
-	local anchorPointY = centerPointY + (groupHeight / 2);
-	CenteringRaidProfile_DebugPrint('Calculated anchor point: '..anchorPointX..', '..anchorPointY);
+	local framePointX = anchorX - (groupWidth / 2) - (numGroups + 1);
+	local framePointY = anchorY + (groupHeight / 2);
+	if (anchorPoint == 'top') then
+		framePointY = anchorY;
+	end
+	CenteringRaidProfile_DebugPrint('Calculated frame point: '..framePointX..', '..framePointY);
 
-	return anchorPointX, anchorPointY, groupWidth, groupHeight;
+	return framePointX, framePointY, groupWidth, groupHeight;
 end
 
 
-local function CenteringRaidProfile_GetAccurateCenteredBounds(centerPointX, centerPointY, numGroups, playerSubgroup)
+local function CenteringRaidProfile_GetAccurateCenteredFrameBounds(anchorPoint, anchorX, anchorY, numGroups, playerSubgroup, largestSubgroupCount)
 	-- When a player first joins a group after logging in, the raid group frames are seemingly not loaded right
 	-- away, so we need to check to be sure that we can grab the player's group frame before we can continue.
 	-- If we can't, we probably just have to wait another second or two at most, but in the meantime, we
@@ -197,7 +209,7 @@ local function CenteringRaidProfile_GetAccurateCenteredBounds(centerPointX, cent
 	local playerGroupFrame = _G['CompactRaidGroup'..playerSubgroup];
 	if (playerGroupFrame == nil) then
 		CenteringRaidProfile_DebugPrint('Failed to update raid frames: group frames not fully loaded (swapping to different strategy).');
-		return CenteringRaidProfile_GetApproximateCenteredBounds(centerPointX, centerPointY, numGroups);
+		return CenteringRaidProfile_GetApproximateCenteredFrameBounds(anchorPoint, anchorX, anchorY, numGroups, largestSubgroupCount);
 	end
 
 	-- Calculate the size of the complete raid container based on the number of visible groups, as well as the
@@ -207,8 +219,8 @@ local function CenteringRaidProfile_GetAccurateCenteredBounds(centerPointX, cent
 	local workingProfile = CenteringRaidProfile_GetWorkingRaidProfile();
 	local usingHorizontalGroups = GetRaidProfileOption(workingProfile, RAID_PROFILE_OPTION_HORIZONTAL_GROUPS);
 	if (usingHorizontalGroups) then
-		-- When using horizontal groups, the container needs an extra group's worth of height in order to
-		-- avoid overflow for some reason.  I suspect this is a bug with Blizzard's FlowContainer.
+		-- When using horizontal groups, the container needs an extra group's worth of height in order
+		-- to avoid overflow for some reason.  I suspect this is a bug with Blizzard's FlowContainer.
 		groupHeight = groupHeight * (numGroups + 1);
 	else
 		groupWidth = groupWidth * numGroups;
@@ -216,18 +228,26 @@ local function CenteringRaidProfile_GetAccurateCenteredBounds(centerPointX, cent
 	CenteringRaidProfile_DebugPrint('Group frame size: '..groupWidth..', '..groupHeight);
 	
 	-- Calculate the anchor point for the resize frame to center the raid container.
-	local anchorPointX = centerPointX - (groupWidth / 2) - (BCUF_BORDER_WIDTH / 2);
-	local anchorPointY = centerPointY + (groupHeight / 2) + (BCUF_GROUP_TITLE_HEIGHT / 2);
-	if (usingHorizontalGroups) then
-		anchorPointY = anchorPointY - (groupHeight / (numGroups + 1) / 2);
+	local framePointX = anchorX - (groupWidth / 2) - (BCUF_BORDER_WIDTH / 2);
+	local framePointY = anchorY + (groupHeight / 2) + (BCUF_GROUP_TITLE_HEIGHT / 2);
+	if (anchorPoint == 'top') then
+		framePointY = anchorY;
 	end
-	CenteringRaidProfile_DebugPrint('Calculated anchor point: '..anchorPointX..', '..anchorPointY);
+	if (usingHorizontalGroups) then
+		framePointX = anchorX - (((groupWidth / MEMBERS_PER_RAID_GROUP) * largestSubgroupCount) / 2) - (BCUF_BORDER_WIDTH / 2);
+		if (anchorPoint == 'center') then
+			-- When using horizontal groups, the container needs an extra group's worth of height in order
+			-- to avoid overflow for some reason.  I suspect this is a bug with Blizzard's FlowContainer.
+			framePointY = framePointY - (groupHeight / (numGroups + 1) / 2);
+		end
+	end
+	CenteringRaidProfile_DebugPrint('Calculated frame point: '..framePointX..', '..framePointY);
 
-	return anchorPointX, anchorPointY, groupWidth, groupHeight;
+	return framePointX, framePointY, groupWidth, groupHeight;
 end
 
 
-local function CenteringRaidProfile_UpdateRaidContainerBounds(manager)
+local function CenteringRaidProfile_UpdateRaidContainerBounds()
 	-- Don't do anything if we are in combat (obviously; though if you reach here while in combat, you've
 	-- almost certainly tainted the Blizzard UI already).
 	local inCombat = InCombatLockdown();
@@ -253,29 +273,35 @@ local function CenteringRaidProfile_UpdateRaidContainerBounds(manager)
 	end
 
 	-- Don't do anything if the player is not in a group.
-	local numGroups, _, playerSubgroup = CenteringRaidProfile_GetNumVisibleRaidGroups();
+	local numGroups, _, playerSubgroup, largestSubgroupCount = CenteringRaidProfile_GetNumVisibleRaidGroups();
 	if (numGroups == 0) then
 		CenteringRaidProfile_DebugPrint('Failed to update raid frames: no group detected.');
 		return;
 	end
 	CenteringRaidProfile_DebugPrint('Non-empty subgroups: '..numGroups);
+	CenteringRaidProfile_DebugPrint('Player subgroup: '..playerSubgroup);
+	CenteringRaidProfile_DebugPrint('Largest subgroup count: '..largestSubgroupCount);
 	
 	-- Determine center point we are aligning the raid frames with.
-	local centerPointX = GetScreenWidth() * CenteringRaidProfileSettings[CENTERING_RAID_PROFILE_SETTING_CENTER_POINT_X_PERCENTAGE];
-	local centerPointY = GetScreenHeight() * CenteringRaidProfileSettings[CENTERING_RAID_PROFILE_SETTING_CENTER_POINT_Y_PERCENTAGE];
-	CenteringRaidProfile_DebugPrint('Desired center point: '..centerPointX..', '..centerPointY);
+	local anchorPoint = CenteringRaidProfileSettings[CRP_SETTING_ANCHOR_POINT];
+	local anchorX = GetScreenWidth() * CenteringRaidProfileSettings[CRP_SETTING_ANCHOR_POINT_X_PERCENTAGE];
+	local anchorY = GetScreenHeight() * CenteringRaidProfileSettings[CRP_SETTING_ANCHOR_POINT_Y_PERCENTAGE];
+	CenteringRaidProfile_DebugPrint('Desired anchor/center point: '..anchorX..', '..anchorY);
 
 	-- Get the bounds for the raid container such that it will be centered around the specified point.
-	local anchorPointX, anchorPointY, groupWidth, groupHeight = CenteringRaidProfile_GetAccurateCenteredBounds(centerPointX, centerPointY, numGroups, playerSubgroup);
+	local framePointX, framePointY, groupWidth, groupHeight = CenteringRaidProfile_GetAccurateCenteredFrameBounds(anchorPoint, anchorX, anchorY, numGroups, playerSubgroup, largestSubgroupCount);
 
 	-- The raid container bounds are controlled by the "Resize Frame" that players see when they unlock the raid
 	-- container.  We manipulate the Resize Frame to play nice with Blizzard's UI, and to ensure the bounds are
 	-- saved correctly in the raid profile so that the resize frame looks reasonable/usable if the player chooses
 	-- to stop using this add-on.
+	local manager = CompactRaidFrameManager;
 	local resizeFrame = manager.containerResizeFrame;
 	resizeFrame:ClearAllPoints();
-	resizeFrame:SetPoint('TOPLEFT', UIParent, 'BOTTOMLEFT', anchorPointX, anchorPointY);
-	resizeFrame:SetHeight(groupHeight);
+	resizeFrame:SetPoint('TOPLEFT', UIParent, 'BOTTOMLEFT', framePointX, framePointY);
+	-- Adding in the title height and border width with accounts for the rendering offset that Blizzard does
+	-- with the resize frame.  This might be a bug on their side, but I account for it nontheless.
+	resizeFrame:SetHeight(groupHeight + BCUF_GROUP_TITLE_HEIGHT + BCUF_BORDER_WIDTH);
 	resizeFrame:SetUserPlaced(1);
 	CompactRaidFrameManager_ResizeFrame_SavePosition(manager)
 	CenteringRaidProfile_DebugPrint('Updated auto-adjusting raid profile position.');
@@ -314,12 +340,12 @@ local function CenteringRaidProfile_ConfigureRaidProfile()
 	end
 	
 	-- Make sure the special raid profile for this add-on exists.
-	local profileExists = RaidProfileExists(CENTERING_RAID_PROFILE_NAME);
+	local profileExists = RaidProfileExists(CRP_PROFILE_NAME);
 	if (profileExists == false) then
 		local numProfiles = GetNumRaidProfiles();
 		local maxNumProfiles = GetMaxNumCUFProfiles();
 		if (numProfiles < maxNumProfiles) then
-			CreateNewRaidProfile(CENTERING_RAID_PROFILE_NAME);
+			CreateNewRaidProfile(CRP_PROFILE_NAME);
 		else
 			CenteringRaidProfile_Print('You have too many raid profiles ('..numProfiles..'); you must remove one in order for this add-on to function.');
 		end
@@ -460,7 +486,7 @@ function CenteringRaidProfile_UpdateRaidProfile()
 end
 
 
-function CenteringRaidProfile_UpdateRaidContainer(manager)
+function CenteringRaidProfile_UpdateRaidContainer()
 	-- Due to the way we are hooking the Blizzard UI, we need to be careful to avoid stack overflows.
 	-- Frame updates are usually where the stack overflow end up, so we prevent other updates until we are
 	-- completely done with an active update.
@@ -469,12 +495,7 @@ function CenteringRaidProfile_UpdateRaidContainer(manager)
 		return;
 	end
 	
-	-- We need to always have the raid UI manager object for our updates.
-	if (manager == nil) then
-		manager = CompactRaidFrameManager;
-	end
-	
-	CenteringRaidProfile_UpdateRaidContainerBounds(manager);
+	CenteringRaidProfile_UpdateRaidContainerBounds();
 	
 	CenteringRaidProfile_RelinquishUpdateGroupLock();
 end
@@ -493,10 +514,10 @@ local CONSOLE_COMMAND_TABLE = {
 		end
 		CenteringRaidProfile_Print(message);
 	end,
-	['help'] = 'Available console commands: status, help, debug on|off, centerx|centery <percentage between 0.15 and 0.85>.',
+	['help'] = 'Available console functions: help, status, anchorpoint <center | top>, anchorx | anchory <percentage between 0.15 and 0.85>',
 	['debug'] = function(enabled)
 		local boolValue = CenteringRaidProfile_ToBoolean(enabled);
-		CenteringRaidProfileSettings[CENTERING_RAID_PROFILE_SETTING_DEBUG_LOGGING] = boolValue;
+		CenteringRaidProfileSettings[CRP_SETTING_DEBUG_LOGGING] = boolValue;
 		
 		local message = 'Debug output: ';
 		if (boolValue) then
@@ -506,35 +527,60 @@ local CONSOLE_COMMAND_TABLE = {
 		end
 		CenteringRaidProfile_Print(message);
 	end,
-	['centerx'] = function(percentage)
-		local basePercentage = tonumber(percentage);
-		local finalPercentage = math.min(math.max(basePercentage, 0.15), 0.85);
-		CenteringRaidProfileSettings[CENTERING_RAID_PROFILE_SETTING_CENTER_POINT_X_PERCENTAGE] = finalPercentage;
-		CenteringRaidProfile_Print('Center anchor X position saved: '..finalPercentage..'.');
+	['anchorpoint'] = function(point)
+		point = point:lower();
+		point = point:gsub('^%s*(.-)%s*$', '%1'); -- trim
+		if (point == 'top' or point == 'center') then
+			CenteringRaidProfileSettings[CRP_SETTING_ANCHOR_POINT] = point;
+			CenteringRaidProfile_Print('Anchor point saved: '..point..'.');
 		
-		local inCombat = InCombatLockdown();
-		if (inCombat == false or crpCombatDetected == false) then
-			CenteringRaidProfile_UpdateRaidContainer();
+			local inCombat = InCombatLockdown();
+			if (inCombat == false or crpCombatDetected == false) then
+				CenteringRaidProfile_UpdateRaidContainer();
+			else
+				CenteringRaidProfile_Print('Raid container position will be updated after combat.');
+			end
 		else
-			CenteringRaidProfile_Print('Raid container position will be updated after combat.');
+			CenteringRaidProfile_Print('Invalid anchor point \''..point..'\'.  Anchor point can only be the \'center\' or \'top\' of the raid container.');
 		end
 	end,
-	['centery'] = function(percentage)
+	['anchorx'] = function(percentage)
 		local basePercentage = tonumber(percentage);
-		local finalPercentage = math.min(math.max(basePercentage, 0.15), 0.85);
-		CenteringRaidProfileSettings[CENTERING_RAID_PROFILE_SETTING_CENTER_POINT_Y_PERCENTAGE] = finalPercentage;
-		CenteringRaidProfile_Print('Center anchor Y position saved: '..finalPercentage..'.');
-		
-		local inCombat = InCombatLockdown();
-		if (inCombat == false or crpCombatDetected == false) then
-			CenteringRaidProfile_UpdateRaidContainer();
+		if (basePercentage) then
+			local finalPercentage = math.min(math.max(basePercentage, 0.15), 0.85);
+			CenteringRaidProfileSettings[CRP_SETTING_ANCHOR_POINT_X_PERCENTAGE] = finalPercentage;
+			CenteringRaidProfile_Print('Anchor X position saved: '..finalPercentage..'.');
+			
+			local inCombat = InCombatLockdown();
+			if (inCombat == false or crpCombatDetected == false) then
+				CenteringRaidProfile_UpdateRaidContainer();
+			else
+				CenteringRaidProfile_Print('Raid container position will be updated after combat.');
+			end
 		else
-			CenteringRaidProfile_Print('Raid container position will be updated after combat.');
+			CenteringRaidProfile_Print('Invalid value \''..percentage..'\' for anchorx.  Please specify a percentage between 0.15 and 0.85.');
+		end
+	end,
+	['anchory'] = function(percentage)
+		local basePercentage = tonumber(percentage);
+		if (basePercentage) then
+			local finalPercentage = math.min(math.max(basePercentage, 0.15), 0.85);
+			CenteringRaidProfileSettings[CRP_SETTING_ANCHOR_POINT_Y_PERCENTAGE] = finalPercentage;
+			CenteringRaidProfile_Print('Anchor Y position saved: '..finalPercentage..'.');
+			
+			local inCombat = InCombatLockdown();
+			if (inCombat == false or crpCombatDetected == false) then
+				CenteringRaidProfile_UpdateRaidContainer();
+			else
+				CenteringRaidProfile_Print('Raid container position will be updated after combat.');
+			end
+		else
+			CenteringRaidProfile_Print('Invalid value \''..percentage..'\' for anchorx.  Please specify a percentage between 0.15 and 0.85.');
 		end
 	end,
 	['allprofiles'] = function(enabled)
 		local boolValue = CenteringRaidProfile_ToBoolean(enabled);
-		CenteringRaidProfileSettings[CENTERING_RAID_PROFILE_SETTING_CENTER_ALL_PROFILES] = boolValue;
+		CenteringRaidProfileSettings[CRP_SETTING_CENTER_ALL_RAID_PROFILES] = boolValue;
 		
 		local message = 'Centering ALL raid profiles: ';
 		if (boolValue) then
@@ -613,3 +659,11 @@ function CenteringRaidProfile_OnEvent(self, event, ...)
 		crpCombatDetected = true;
 	end
 end
+
+-- Author note: my personal defaults are:
+-- -- default UI scaling
+-- -- 80 width raid unit frame
+-- -- 40 height raid unit frame
+-- -- anchory .3115 if anchor center
+-- -- anchory .4065 if anchor top
+-- -- allprofiles on
