@@ -1,6 +1,6 @@
 # Centering Raid Profile
 
-A Warcraft add-on that automatically sets up and centers a Blizzard Raid Profile on screen.  Please note: this is strictly a hobby project, and I will likely not be providing much support, if any.  If you come across this, use at your own risk.
+A Warcraft add-on that automatically sets up and centers a Blizzard Raid Profile on a specified point on your screen.
 
 ## Usage
 
@@ -10,9 +10,11 @@ A number of functions and options are available under the `/crp` console command
 
 Use `/crp status` to verify the add-on is running.
 
-Use `/crp centerx` with a number between 0.15 and 0.85 to change the horizontal position of the raid container.  For example: `/crp centerx 0.50`
+Use `/crp anchorpoint center|top` to change the anchor point used for centering the raid container. 
 
-Use `/crp centery` with a number between 0.15 and 0.85 to change the vertical position of the raid container.  For example: `/crp centery 0.30`
+Use `/crp anchorx` with a number between 0.15 and 0.85 to change the horizontal position of the anchor point.  For example: `/crp centerx 0.50`
+
+Use `/crp anchory` with a number between 0.15 and 0.85 to change the vertical position of the anchor point.  For example: `/crp centery 0.30`
 
 Use `/crp debug on|off` to enable/disable debug output.
 
@@ -21,3 +23,7 @@ Use `/crp debug on|off` to enable/disable debug output.
 Note that due to Blizzard's restrictions, the automatic positioning will not occur while you are in combat.  Additionally, this add-on is strictly a hobby project, so I've limited the scope of this positioning to only work with the "Keep Groups Together" option turned on (and the add-on will enforce this setting).
 
 Aside from the limitations above, all other raid profile options are available for you to change.
+
+## Known Issues
+
+While I do support centering horizontal groups, Blizzard's support of horizontal groups in their own raid frames is inconsistent and wonky.  In particular, groups will overflow next to each other even if they have extra room defined within the container space (which you can see by unlocking the raid container).  This is entirely a Blizzard issue and entirely out of my control.  If you notice this overflow behavior, a UI reload (i.e. using the `/reload` console command) should remedy the unnecessary overflow in most situations.
