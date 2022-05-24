@@ -149,6 +149,9 @@ local function CenteringRaidProfile_GetNumVisibleRaidGroups()
 	elseif (isInGroup) then
 		-- If the player is not in a raid but is 'in a group', then the player is in a party.
 		numGroups = 1;
+		numPlayers = GetNumGroupMembers();
+		playerSubgroup = 1;
+		largestSubgroupCount = numPlayers;
 	end
 	
 	return numGroups, numPlayers, playerSubgroup, largestSubgroupCount;
