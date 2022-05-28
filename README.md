@@ -12,9 +12,11 @@ Use `/crp status` to verify the add-on is running.
 
 Use `/crp anchorpoint center|top` to change the anchor point used for centering the raid container. 
 
-Use `/crp anchorx` with a number between 0.15 and 0.85 to change the horizontal position of the anchor point.  For example: `/crp centerx 0.50`
+Use `/crp anchorx` with a number between 0.15 and 0.85 to change the horizontal position of the anchor point.  For example: `/crp anchorx 0.50`
 
-Use `/crp anchory` with a number between 0.15 and 0.85 to change the vertical position of the anchor point.  For example: `/crp centery 0.30`
+Use `/crp anchory` with a number between 0.15 and 0.85 to change the vertical position of the anchor point.  For example: `/crp anchory 0.30`
+
+Use `/crp allprofiles on|off` to change whether the add-on centers only the raid container for it's raid profile or for _all_ raid profiles.
 
 Use `/crp debug on|off` to enable/disable debug output.
 
