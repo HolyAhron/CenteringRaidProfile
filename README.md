@@ -2,6 +2,10 @@
 
 A Warcraft add-on that automatically sets up and centers a Blizzard Raid Profile on a specified point on your screen.
 
+**There are no plans to rebuild this for Dragonflight or for The War Within.**  Blizzard initially included this functionality in 10.0 (Dragonflight Pre-patch), but for entirely unknown reasons, they disabled it in 10.0.2 (Dragonflight Launch).  Since then, I have run into tainting issue after tainting issue, and I don't have enough spare time to figure out further alternatives to implementing this functionality.  Given the state of Blizzard's updated UI, it's likely that this feature cannot exist unless either Blizzard reverts their change they made in 10.0.2 or they address the mountain of tainting issues in the new UI.
+
+This repository is being left up as a historical artifact in case I or others wish to take lessons from this code in working with WoW and Lua.
+
 ## Usage
 
 When you first load into the game, a raid profile is created called "Centering Raid Profile", which will have its position automatically centered on screen.  The default position should place the raid frames in between your character model on screen and the extra action button area when you are at maximum zoom.
